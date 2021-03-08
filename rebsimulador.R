@@ -243,7 +243,7 @@ df_output <- transform_patrimonio_df_historical_with_periods_flag %>%
   mutate(rendimento = (montante - patrimonio_inicial)/patrimonio_inicial)
 
 
-########## Export results
+########## Export results for Power BI visualization
 
 write.csv(df_output,
           "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/with_negative_15_01/df_output.csv"
