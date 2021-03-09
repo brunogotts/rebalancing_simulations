@@ -1,4 +1,4 @@
-### rebalancing simulations - portfolio stocks
+### simulacoes transacoes portfolio de acoes
 library(reshape)
 library(dplyr)
 library(openxlsx)
@@ -36,12 +36,12 @@ raw_df <- raw_df %>% rename(
 
 raw_df$variacao_diaria <- raw_df$variacao_diaria+1 
 
-########## variables settings
+########## configuracao de variaveis
 
-# total investment
+# patrimonio total investido
 patrimonio_inicial <- 1000
 
-# stocks types and  percentage stock composition
+# tipo acoes e composicao de percentual do portfolio
 tipoAcoes_df <- data.frame('tipo' = c('Rendimento_Diario_Ibovespa', 'Rendimento_Diario_S&P_500'
                                       ,'Rendimento_Diario_IMA-B','Rendimento_Diario_IDA-DI'
                                       ,'Rendimento_Diario_IHFA','Rendimento_Diario_CDI')
@@ -49,21 +49,27 @@ tipoAcoes_df <- data.frame('tipo' = c('Rendimento_Diario_Ibovespa', 'Rendimento_
                                              ,0.1,0.4
                                              ,0.1,0.35))
 
-# defined periods to rebalance
-periodos_realocacao <- c(3,6,12,18,24,99999)
-#periodos_realocacao <- c(1,2)
+# periodos definidos de realocacao para simulacao
+#periodos_realocacao <- c(3,4,6,8,9,12,18,24,99999)
+periodos_realocacao <- c(2,3)
 
-# percentage variation to rebalance
-variacoes_percentuais_realocacao <- c(0.1,0.5,1,99998)
-#variacoes_percentuais_realocacao <- c(0.01,0.05)
+# variacao percentual para realocar os recursos
+#variacoes_percentuais_realocacao <- c(0.05,0.1,0.15,0.2,99998)
+variacoes_percentuais_realocacao <- c(0.05,0.1)
+variacoes_percentuais_realocacao <- variacoes_percentuais_realocacao + 1
+
+#variacao_percentual_realocacao <- 1+0.1
+#realocar_percentual_tipoAcoes <- tipoAcoes_df %>% mutate(percentage = percentage * variacao_percentual_realocacao)
 
 
-# initial investment by each stock
+
+# composicao realizada de patrimonio
 patrimonio_df_initial <- tipoAcoes_df %>% 
   mutate(investimento = percentage * patrimonio_inicial)
 
-########## scenarios simulation
+########## simulacao de cenarios
 #raw_df <- raw_df %>% filter(Data >= '2010-01-01')
+#raw_df <- raw_df %>% filter(Data >= '2010-10-01')
 #raw_df <- raw_df %>% filter(Data >= '2010-12-23')
 
 df_dates <- raw_df %>% select(Data) %>% group_by(Data) %>% summarise()
@@ -78,14 +84,18 @@ df_dates <- df_dates %>%
 
 variation_df <- raw_df %>% select(tipo,Data,variacao_diaria)
 
+
+
 patrimonio_df_historical_with_periods_flag <- ''
+
+
 
 for (variacao_percentual_realocacao_loop in variacoes_percentuais_realocacao) {
   print(variacao_percentual_realocacao_loop)
-  realocar_percentual_tipoAcoes_positivo <<- tipoAcoes_df %>% mutate(percentage = percentage * (1+variacao_percentual_realocacao_loop))
+  realocar_percentual_tipoAcoes <<- tipoAcoes_df %>% mutate(percentage = percentage * variacao_percentual_realocacao_loop)
   
-  realocar_percentual_tipoAcoes_negativo <<- tipoAcoes_df %>% mutate(percentage = percentage * (1-variacao_percentual_realocacao_loop))
-  
+  realocar_percentual_tipoAcoes <<- tipoAcoes_df %>% mutate(percentage = percentage * variacao_percentual_realocacao_loop)
+    
   for (n in periodos_realocacao) {
     print(n)
     df_dates_simulating <- df_dates %>% mutate(transaction_period = ifelse(month_count%%n==0 & flag ==1,1,0))
@@ -93,8 +103,8 @@ for (variacao_percentual_realocacao_loop in variacoes_percentuais_realocacao) {
     patrimonio_df_month_historical <- ''
     patrimonio_df <- patrimonio_df_initial 
     
-    #for (i in 1:45) {
-    1:nrow(df_dates) { 
+    #1:nrow(df_dates)
+    for (i in 1:45) {
       print(df_dates[[i,1]])
       
       flag_rebalanceado <- 0
@@ -103,7 +113,7 @@ for (variacao_percentual_realocacao_loop in variacoes_percentuais_realocacao) {
       if(data.frame(df_dates_simulating %>% filter(Data == df_dates[[i,1]])) %>% select(transaction_period) ==1) {
         print('Rebalanceou por periodo')
         
-        # rebalance - period
+        #fazer a transformacao de rebalanceamento
         patrimonio_df <- patrimonio_df %>% inner_join(tipoAcoes_df,by = 'tipo') %>% 
           mutate(investimento = total_investimento * percentage.y) %>%
           select(tipo,investimento,percentage.y) %>% 
@@ -114,17 +124,13 @@ for (variacao_percentual_realocacao_loop in variacoes_percentuais_realocacao) {
         tipo_rebalanceado <- 'periodo'
       } 
       
-      test_realocar_percentual_tipoAcoes_positivo <- patrimonio_df %>% inner_join(realocar_percentual_tipoAcoes_positivo, by =  'tipo') %>% 
+      test_realocar_percentual_tipoAcoes <- patrimonio_df %>% inner_join(realocar_percentual_tipoAcoes, by =  'tipo') %>% 
         mutate(flag_rebalancear_percentage = ifelse(percentage.x >= percentage.y,1,0))
       
-      test_realocar_percentual_tipoAcoes_negativo <- patrimonio_df %>% inner_join(realocar_percentual_tipoAcoes_negativo, by =  'tipo') %>% 
-        mutate(flag_rebalancear_percentage = ifelse(percentage.x <= percentage.y,1,0))
-
-      
-      if(sum(test_realocar_percentual_tipoAcoes_positivo$flag_rebalancear_percentage)>=1|sum(test_realocar_percentual_tipoAcoes_negativo$flag_rebalancear_percentage)>=1) {
+      if(sum(test_realocar_percentual_tipoAcoes$flag_rebalancear_percentage)>=1) {
         print('Rebalanceou por variacao percentual')
         
-        # rebalance - variation
+        #fazer a transformacao de rebalanceamento
         patrimonio_df <- patrimonio_df %>% inner_join(tipoAcoes_df,by = 'tipo') %>% 
           mutate(investimento = total_investimento * percentage.y) %>%
           select(tipo,investimento,percentage.y) %>% 
@@ -158,6 +164,7 @@ for (variacao_percentual_realocacao_loop in variacoes_percentuais_realocacao) {
       
       patrimonio_df_month_historical <- rbind(patrimonio_df_month_historical,patrimonio_df_month)
       
+      # fim do loop de vetor de periodos de rebalanceamento
     }
     
     patrimonio_df_month_historical <- patrimonio_df_month_historical[-1,]
@@ -167,121 +174,58 @@ for (variacao_percentual_realocacao_loop in variacoes_percentuais_realocacao) {
     patrimonio_df_historical_with_periods_flag <- rbind(patrimonio_df_historical_with_periods_flag,
                                                         patrimonio_df_month_historical)
     
-    
-    # end of periods list loop
+    # fim do loop de vetor de periodos de rebalanceamento 
   }
   
-  # end of variation list loop
+  # fim do loop de vetor de variacoes percentuais de rebalanceamento 
 }
 
-patrimonio_df_historical_with_periods_flag <- patrimonio_df_historical_with_periods_flag[-1,]
 
-########## Final transformation
+patrimonio_df_historical_with_periods_flag <- patrimonio_df_historical_with_periods_flag[-1,]
+#buffer 01
+
+########## Transformacoes finais
 
 # create unique key by combination of flags
 
 transform_patrimonio_df_historical_with_periods_flag <- patrimonio_df_historical_with_periods_flag %>% 
   mutate(key_flags = paste0(periods_flag,"_",variacao_percentual_flag),
-         type_rebalanceamento = ifelse(periods_flag == 99999 & variacao_percentual_flag == 99999, '-',
-                                       ifelse(variacao_percentual_flag == 99999, 'uniq_periodo',
+         type_rebalanceamento = ifelse(periods_flag == 99999 & variacao_percentual_flag == 1001, '-',
+                                       ifelse(variacao_percentual_flag == 1001, 'uniq_periodo',
                                               ifelse(periods_flag == 99999, 'uniq_varPerc','combination_periodo_varPerc'))))
 
 
-transform_patrimonio_df_historical_with_periods_flag <- transform_patrimonio_df_historical_with_periods_flag %>% 
-  mutate(flag_stock_perc_desc = tipo_rebalanceado) %>%
-  mutate(tipo_rebalanceado = ifelse(tipo_rebalanceado=='variacao_percentual_positiva'|tipo_rebalanceado=='variacao_percentual_negativa',
-                                  'variacao_percentual',tipo_rebalanceado))
-
-
-
+# count rebalanceamentos
 contagem_rebalanceamentos_portipo <- transform_patrimonio_df_historical_with_periods_flag %>% 
-  group_by(Data,key_flags,tipo_rebalanceado) %>%
-  summarise(total_rebalanceamentos = sum(as.numeric(flag_rebalanceado)))  %>%
-  filter(tipo_rebalanceado != 'none') %>% 
   group_by(key_flags,tipo_rebalanceado) %>%
-  tally()  %>%
-  rename(total_rebalanceamentos = n)
-
-
-
-###
-#
-contagem_rebalanceamentos_portipo_perc_desc_both <- transform_patrimonio_df_historical_with_periods_flag %>% 
-  group_by(Data,key_flags,tipo_rebalanceado,flag_stock_perc_desc,flag_stock_perc) %>%
-  summarise(total_rebalanceamentos = sum(as.numeric(flag_rebalanceado)))  %>%
-  filter(flag_stock_perc_desc != 'none' & flag_stock_perc != 'none') %>% 
-  group_by(key_flags,tipo_rebalanceado,flag_stock_perc_desc,flag_stock_perc) %>%
-  tally() %>%
-  rename(total_rebalanceamentos = n)
-
-#####
-
-
-
-
-contagem_rebalanceamentos_historic_total <- transform_patrimonio_df_historical_with_periods_flag %>% 
-  group_by(Data,key_flags) %>%
-  summarise(total_rebalanceamentos = sum(as.numeric(flag_rebalanceado))) %>%
-  mutate(total_rebalanceamentos = ifelse(total_rebalanceamentos>=1,1,total_rebalanceamentos))
+  summarise(total_rebalanceamentos = sum(as.numeric(flag_rebalanceado))/2)  %>%
+  filter(tipo_rebalanceado != 'none')
 
 
 contagem_rebalanceamentos_total <- transform_patrimonio_df_historical_with_periods_flag %>% 
-  group_by(Data,key_flags) %>%
-  summarise(total_rebalanceamentos = sum(as.numeric(flag_rebalanceado))) %>%
-  filter(total_rebalanceamentos>=1) %>%
   group_by(key_flags) %>%
-  tally()  %>%
-  rename(total_rebalanceamentos = n)
+  summarise(total_rebalanceamentos = sum(as.numeric(flag_rebalanceado))/2)
 
 
-
-# Group - date and flag
-
+#Agrupamento por data e flag
 df_output <- transform_patrimonio_df_historical_with_periods_flag %>% 
   group_by(Data,periods_flag,variacao_percentual_flag,key_flags,type_rebalanceamento) %>%
   summarise(montante = sum(as.numeric(investimento))) %>%
   mutate(rendimento = (montante - patrimonio_inicial)/patrimonio_inicial)
 
 
-########## Export results for Power BI visualization
+# testar datas
+
+
+
+########## Exportar Resultados
 
 write.csv(df_output,
-          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/with_negative_15_01/df_output.csv"
-          , row.names=FALSE)
+          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/df_output_11_01.csv")
 
 write.csv(contagem_rebalanceamentos_portipo,
-          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/with_negative_15_01/contagem_rebalanceamentos_portipo.csv"
-          , row.names=FALSE)
-
-
-write.csv(transform_patrimonio_df_historical_with_periods_flag,
-          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/with_negative_15_01/transform_patrimonio_df_historical_with_periods_flag.csv"
-          , row.names=FALSE)
-
-
-write.csv(contagem_rebalanceamentos_portipo_perc_desc_both,
-          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/with_negative_15_01/contagem_rebalanceamentos_portipo_perc_desc_both.csv"
-          , row.names=FALSE)
-
-
-write.csv(contagem_rebalanceamentos_historic_total,
-          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/with_negative_15_01/contagem_rebalanceamentos_historic_total.csv"
-          , row.names=FALSE)
-
-
-write.csv(contagem_rebalanceamentos_total,
-          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/with_negative_15_01/contagem_rebalanceamentos_total.csv"
-          , row.names=FALSE)
-
+          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/count_rebalanceamentos_11_01.csv")
 
 
 write.csv(patrimonio_df_historical_with_periods_flag,
-          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/with_negative_15_01/patrimonio_df_historical_with_periods_flag.csv"
-          , row.names=FALSE)
-
-
-write.csv(tipoAcoes_df,
-          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/with_negative_15_01/tipoAcoes_df.csv"
-          , row.names=FALSE)
-
-
+          "C:/Users/Bruno/Desktop/pastas/personal/projects/finances/Simulacoes/Simulacoes/patrimonio_df_historical_with_periods_flag_11_01.csv")
